@@ -95,10 +95,14 @@ for i in range(conf["epochs"]):
 
         deq_optim.zero_grad()
 
+        f_start = time.time()
         y_hat = deq_classifier(image)
+        f_end = time.time()
 
-        loss = criterion(y_hat, labels)
+        loss = criterion(y_hat.squeeze(), labels)
+        b_start = time.time()
         loss.backward()
+        b_end = time.time()
         deq_optim.step()
         print(f"deq_loss: {loss.item():.5f}")
         wandb.log({"loss": loss.item(),
