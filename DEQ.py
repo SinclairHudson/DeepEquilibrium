@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from rootfind import BroydenRootFind
+from rootfind import ImplicitDiff
 
 class DEQ(nn.Module):
     """
@@ -19,13 +20,26 @@ class DEQ(nn.Module):
         super(DEQ, self).__init__()
         self.f = f
         self.forward_eps = forward_eps
-        self.RootFind = BroydenRootFind  # function where the magic happens
+        self.RootFind = BroydenRootFind
         self.alpha = alpha
         self.max_iters = max_iters
         self.eq_size = eq_size
 
     def forward(self, x):
-        # TODO verify
-        zstar = self.RootFind.apply(self.f, x, self.eq_size, self.forward_eps, self.alpha, self.max_iters)
-        return zstar
+        batch_size = x.size()[0]
+
+        def g(z):
+            return self.f(z, x) - z
+
+        with torch.no_grad():
+            z_0 = torch.zeros((self.eq_size,))
+            z_star = self.RootFind.apply(g, z_0, self.forward_eps,
+                                         self.alpha, self.max_iters)
+
+
+        z_star = self.f(z_star, x)  # this is a dummy call, to pass the gradient
+        # to the parameters of f.
+        z_star = ImplicitDiff.apply(g, z_star)
+
+        return z_star
 

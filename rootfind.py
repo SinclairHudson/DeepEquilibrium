@@ -1,5 +1,6 @@
 import torch
 import torch.autograd as AG
+import wandb
 
 
 def update_inv_jacobian_approx(B, deltaZ, deltaG):
@@ -47,12 +48,12 @@ def broyden(g, z_0, eps, alpha, max_iters):
         deltaZ = newZ - prevZ
         delta = torch.norm(deltaZ)
 
-        B = update_inv_jacobian_approx(
-            B, deltaZ, deltaG)  # update the jacob approx
+        # update the jacob approx
+        B = update_inv_jacobian_approx(B, deltaZ, deltaG)
         prevG = newG  # the new is now the old
         prevZ = newZ
 
-    return prevZ
+    return prevZ, iters
 
 
 class BroydenRootFind(AG.Function):
@@ -63,29 +64,43 @@ class BroydenRootFind(AG.Function):
     """
 
     @staticmethod
-    def forward(ctx, f, x, eq_size, eps, alpha, max_iters):
+    def forward(ctx, g, z_0, eps, alpha, max_iters):
         """
         :param func:
         :returns: equilibrium z_star, the root of f(z,x)
         """
+        root, iters = broyden(g, z_0, eps, alpha, max_iters)
 
-        def g(z):
-            return f(z, x) - z
-
-        # TODO is this a sin?
-        # saving for backward
-        ctx.originalg = g
-
-        with torch.no_grad():
-            root = broyden(g, torch.zeros((eq_size,)), eps, alpha, max_iters)
-
-        ctx.save_for_backward(root)  # z_star
+        wandb.log({"forward_iters": iters})
         return root
 
     @staticmethod
     def backward(ctx, dl_dzstar):
         """
-        Input into this backward is the gradient of the loss wrt the equilibrium
+        This method does nothing. while we have dl_dzstar, we don't want to
+        apply the gradient
+        """
+        raise NotImplementedError("Backpropping through a general Broyden's \
+                                  method is not defined. Use ImplicitDiff.")
+
+
+class ImplicitDiff(AG.Function):
+
+    @staticmethod
+    def forward(ctx, g, z_star):
+        """
+        :param g: a pytorch function that we'll save for the backward pass
+        :param z_star: the root of g, found arbitrarily.
+        """
+
+        ctx.originalg = g
+        ctx.save_for_backward(z_star)
+        return z_star
+
+    @staticmethod
+    def backward(ctx, dl_dzstar):
+        """
+        Input into this backward is the gradient of the loss wrt the equilibrium.
         From here, we want to pass a gradient to f, which in turn will pass it
         to the parameters within f. We can create this gradient however we want;
         we don't need torch ops, because we are the torch op.
@@ -105,7 +120,9 @@ class BroydenRootFind(AG.Function):
             z_star.grad.zero_()  # remove the gradient (this is kind of a fake grad)
             return JTxT + dl_dzstar
 
-        neg_dl_dzs_J_inv = broyden(JacobianVector, torch.zeros_like(dl_dzstar),
-                                   2e-6, alpha=1, max_iters=200)
+        neg_dl_dzs_J_inv, iters = broyden(JacobianVector, torch.zeros_like(dl_dzstar),
+                                   2e-7, alpha=0.5, max_iters=200)
 
-        return (None, neg_dl_dzs_J_inv, None, None, None, None)
+        wandb.log({"backward_iters": iters})
+
+        return (None, neg_dl_dzs_J_inv)

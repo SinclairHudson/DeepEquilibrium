@@ -5,7 +5,7 @@ class LinearUnit(nn.Module):
     def __init__(self):
         super(LinearUnit, self).__init__()
         self.linear = nn.Linear(4, 2, bias=False)
-        self.activation = nn.ReLU6()
+        self.activation = nn.Tanh()
 
     def forward(self, z, x):
         inter = torch.cat((z, x), axis=0)
