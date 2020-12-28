@@ -3,6 +3,7 @@ import torch.nn as nn
 from rootfind import BroydenRootFind
 from rootfind import ImplicitDiff
 
+
 class DEQ(nn.Module):
     """
     A module to represent a DEQ.

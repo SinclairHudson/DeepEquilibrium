@@ -28,6 +28,11 @@ conf = {
 wandb.init(project="deep-equilibrium", config=conf)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+print("using gpu")
+# the following line makes sure that all initialized tensors are made on gpu
+torch.cuda.manual_seed_all(seed)
+
+
 
 class Unit(nn.Module):
     def __init__(self):
@@ -83,28 +88,32 @@ classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 # losses and optimization
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss().to(device)
 
-deq_classifier = Classifier()
+deq_classifier = Classifier().to(device)
 
 deq_optim = optim.Adam(u.parameters(), lr=conf["learning_rate"])
 
-for i in range(conf["epochs"]):
+
+for e in range(conf["epochs"]):
     for i, data in enumerate(trainloader, 0):
         image, labels = data
 
         deq_optim.zero_grad()
 
+        torch.set_default_tensor_type('torch.cuda.FloatTensor')
         f_start = time.time()
-        y_hat = deq_classifier(image)
+        y_hat = deq_classifier(image.to(device))
         f_end = time.time()
 
-        loss = criterion(y_hat.squeeze(), labels)
+        loss = criterion(y_hat.squeeze(), labels.to(device))
         b_start = time.time()
         loss.backward()
         b_end = time.time()
         deq_optim.step()
         print(f"deq_loss: {loss.item():.5f}")
-        wandb.log({"loss": loss.item(),
+        wandb.log({"loss": loss.cpu().item(),
                    "forward pass runtime": f_end - f_start,
                    "backward pass runtime": b_end - b_start})
+
+    torch.set_default_tensor_type('torch.FloatTensor')
