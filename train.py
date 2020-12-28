@@ -17,6 +17,7 @@ conf = {
     "forward_eps": 1e-4,
     "max_iters": 150,
     "backward_eps": 1e-4,
+    "batch_size": 46,
     "alpha": 0.5,
     "learning_rate": 1e-4,
     "random_seed": seed,
@@ -52,10 +53,17 @@ for i in range(conf["pre_train_epochs"]):
 for i in range(conf["epochs"]):
     x = torch.rand((17, 2), requires_grad=True)
     y_true = -x
+    f_start = time.time()
     y_hat = deq.forward(x)
+    f_end = time.time()
+
     loss = criterion(y_true, y_hat)
     print(f"deq_loss: {loss.item():.5f}")
-    wandb.log({"loss": loss.item()})
 
+    b_start = time.time()
     loss.backward()
+    b_end = time.time()
+    wandb.log({"loss": loss.item(),
+               "forward pass runtime": f_end - f_start,
+               "backward pass runtime": b_end - b_start})
     deq_optim.step()
