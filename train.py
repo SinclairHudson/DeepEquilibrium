@@ -26,18 +26,19 @@ wandb.init(project="deep-equilibrium", config=conf)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-criterion = nn.MSELoss(reduction='sum')
+criterion = nn.MSELoss()
 
 f = LinearUnit()
 
-deq = DEQ(f, 2, conf["forward_eps"], conf["backward_eps"], conf["alpha"], conf["max_iters"])
+deq = DEQ(f, (-1, 2), conf["forward_eps"], conf["backward_eps"],
+          conf["alpha"], conf["max_iters"])
 
 deq_optim = optim.Adam(f.parameters(), lr=conf["learning_rate"])
 
 
 for i in range(conf["pre_train_epochs"]):
-    x = torch.rand((2,), requires_grad=True)
-    z = torch.zeros((2,), requires_grad=True)
+    x = torch.rand((17, 2), requires_grad=True)
+    z = torch.zeros((17, 2), requires_grad=True)
     y_hat = f(z, x)
     y_hat = f(y_hat, x)
     y_true = - x
@@ -49,7 +50,7 @@ for i in range(conf["pre_train_epochs"]):
 
 
 for i in range(conf["epochs"]):
-    x = torch.rand((2,), requires_grad=True)
+    x = torch.rand((17, 2), requires_grad=True)
     y_true = -x
     y_hat = deq.forward(x)
     loss = criterion(y_true, y_hat)

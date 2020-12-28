@@ -8,6 +8,6 @@ class LinearUnit(nn.Module):
         self.activation = nn.Tanh()
 
     def forward(self, z, x):
-        inter = torch.cat((z, x), axis=0)
+        inter = torch.cat((z, x), axis=1)
         inter = self.linear(inter)
         return self.activation(inter)
