@@ -14,12 +14,12 @@ seed = 1337
 
 torch.manual_seed(seed)
 conf = {
-    "epochs": 300_000,
-    "pre_train_epochs": 2_000,
+    "epochs": 30,
+    "pre_train_epochs": 3,
     "forward_eps": 1e-4,
     "max_iters": 150,
     "backward_eps": 1e-4,
-    "batch_size": 2,
+    "batch_size": 4,
     "alpha": 0.5,
     "learning_rate": 1e-4,
     "random_seed": seed,
@@ -39,19 +39,21 @@ class Unit(nn.Module):
         super(Unit, self).__init__()
         self.conv1 = nn.Conv2d(8, 6, 5, padding=2)  # need same size
         self.conv2 = nn.Conv2d(6, 5, 5, padding=2)
+        self.gn = nn.GroupNorm(num_groups=3, num_channels=6)
 
     def forward(self, z, x):
         """
         z will be Nx5x32x32, x is Nx3x32x32
         """
         x = torch.cat((z, x), dim=1)
-        x = F.leaky_relu(self.conv1(x))
+        x = self.gn(F.leaky_relu(self.conv1(x)))
         x = F.leaky_relu(self.conv2(x))
         return x
 
 
 u = Unit()
 
+detectionHead = nn.Conv2d(5, 10, 32, padding=0)
 
 class Classifier(nn.Module):
     def __init__(self):
@@ -60,7 +62,7 @@ class Classifier(nn.Module):
                        conf["backward_eps"], conf["alpha"],
                        conf["max_iters"])
         # covers the whole image:
-        self.class_head = nn.Conv2d(5, 10, 32, padding=0)
+        self.class_head = detectionHead
 
     def forward(self, image):
         x = self.deq(image)
@@ -94,6 +96,34 @@ deq_classifier = Classifier().to(device)
 
 deq_optim = optim.Adam(u.parameters(), lr=conf["learning_rate"])
 
+print("starting pretraining")
+for e in range(conf["pre_train_epochs"]):
+    for i, data in enumerate(trainloader, 0):
+        image, labels = data
+
+        deq_optim.zero_grad()
+
+        torch.set_default_tensor_type('torch.cuda.FloatTensor')
+        f_start = time.time()
+        im = image.to(device)
+        z = torch.zeros((conf["batch_size"], 5, 32, 32))
+
+        y_hat = u(z, im)
+        y_hat = u(y_hat, im)
+        y_hat = detectionHead(y_hat)
+        f_end = time.time()
+
+        loss = criterion(y_hat.squeeze(), labels.to(device))
+        b_start = time.time()
+        loss.backward()
+        b_end = time.time()
+        deq_optim.step()
+        print(f"pretraining_loss: {loss.item():.5f} | epoch: {e} | batch: {i}")
+        wandb.log({"loss": loss.cpu().item(),
+                   "forward pass runtime": f_end - f_start,
+                   "backward pass runtime": b_end - b_start})
+
+    torch.set_default_tensor_type('torch.FloatTensor')
 
 for e in range(conf["epochs"]):
     for i, data in enumerate(trainloader, 0):
@@ -111,7 +141,7 @@ for e in range(conf["epochs"]):
         loss.backward()
         b_end = time.time()
         deq_optim.step()
-        print(f"deq_loss: {loss.item():.5f}")
+        print(f"deq_loss: {loss.item():.5f} | epoch: {e} | batch: {i}")
         wandb.log({"loss": loss.cpu().item(),
                    "forward pass runtime": f_end - f_start,
                    "backward pass runtime": b_end - b_start})
