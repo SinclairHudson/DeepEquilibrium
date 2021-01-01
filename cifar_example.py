@@ -129,8 +129,11 @@ for e in range(conf["epochs"]):
     for i, data in enumerate(trainloader, 0):
         image, labels = data
 
+        # reset the gradients
         deq_optim.zero_grad()
 
+        # the DEQ forward pass creates tensors, and we want them to be created
+        # on a GPU instead of a CPU
         torch.set_default_tensor_type('torch.cuda.FloatTensor')
         f_start = time.time()
         y_hat = deq_classifier(image.to(device))
@@ -146,4 +149,5 @@ for e in range(conf["epochs"]):
                    "forward pass runtime": f_end - f_start,
                    "backward pass runtime": b_end - b_start})
 
+    # reset because the trainloader wants to be on CPU
     torch.set_default_tensor_type('torch.FloatTensor')

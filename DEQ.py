@@ -8,7 +8,8 @@ class DEQ(nn.Module):
     """
     A module to represent a DEQ.
     """
-    def __init__(self, f, eq_shape, forward_eps, backward_eps, alpha, max_iters):
+    def __init__(self, f, eq_shape, forward_eps, backward_eps,
+                 alpha, max_iters, root_find_method):
         """
         :param forward_eps: epsilon for the equilibrium in the forward pass
         :param backward_eps: epsilon for the equilibrium in the backward pass
@@ -24,7 +25,7 @@ class DEQ(nn.Module):
         super(DEQ, self).__init__()
         self.f = f
         self.forward_eps = forward_eps
-        self.RootFind = BroydenRootFind
+        self.RootFind = root_find_method
         self.alpha = alpha
         self.max_iters = max_iters
         self.eq_shape = list(eq_shape)
@@ -57,7 +58,7 @@ class DEQ(nn.Module):
             z_star_flat = self.RootFind.apply(g, z_0, self.forward_eps,
                                          self.alpha, self.max_iters)
 
-        # this is a dummy call, to pass the gradient to the parameters of f.
+        # this is a call to pass the gradient to the parameters of f.
         z_star = torch.reshape(z_star_flat, self.eq_shape)
         z_star = self.f(z_star, x)
         # this call doesn't modify z_star, but ensures we differentiate
