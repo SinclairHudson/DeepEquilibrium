@@ -27,6 +27,19 @@ parameters of our neural network.
 For a very in-depth explanation, read the original paper. Also, the same authors provide a more concise and general
 formulation of DEQs in their follow-up work, on [Multiscale Deep Equilibrium Models](https://arxiv.org/abs/2006.08656).
 
+## Project Structure:
+
+```
+DeepEquilibrium
+├── cifar_example.py
+├── data
+├── DEQ.py
+├── README.md
+├── rootfind.py
+├── train.py
+├── unit.py
+└── wandb
+```
 
 ## TODO List:
 - [x] Trivial example working, in the forward pass (size 10)
